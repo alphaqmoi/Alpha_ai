@@ -48,7 +48,7 @@ Clone the repository
 bash
 Copy
 Edit
-git clone https://github.com/your-username/your-new-repo.git
+git clone https://github.com/alphaqmoi/Alpha_ai.git
 cd your-new-repo
 Install project dependencies
 
