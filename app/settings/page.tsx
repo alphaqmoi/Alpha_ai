@@ -15,6 +15,7 @@ import { VoiceSelector } from "@/components/voice-selector"
 import { WebBrowser } from "@/components/web-browser"
 import { GitHubIntegration } from "@/components/github-integration"
 import { AppDownload } from "@/components/app-download"
+import ApiSetup from "@/components/api-setup";
 
 export default function SettingsPage() {
   const [githubToken, setGithubToken] = useState("")
@@ -41,7 +42,7 @@ export default function SettingsPage() {
       </header>
 
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
@@ -49,6 +50,7 @@ export default function SettingsPage() {
           <TabsTrigger value="web">Web Access</TabsTrigger>
           <TabsTrigger value="advanced">Advanced</TabsTrigger>
           <TabsTrigger value="download">Download</TabsTrigger>
+          <TabsTrigger value="api-setup">API Setup</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">
@@ -217,6 +219,10 @@ export default function SettingsPage() {
 
         <TabsContent value="download" className="space-y-4">
           <AppDownload />
+        </TabsContent>
+
+        <TabsContent value="api-setup" className="space-y-4">
+          <ApiSetup />
         </TabsContent>
       </Tabs>
     </div>
