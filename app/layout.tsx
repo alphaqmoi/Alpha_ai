@@ -17,14 +17,15 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Removed ThemeScript */}
+      </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <TaskManagerProvider>
             <SidebarWrapper>
-              <ErrorBoundary
-                fallback={<div className="p-4">Something went wrong. Please try refreshing the page.</div>}
-              >
+              <ErrorBoundary>
                 <main className="flex-1">{children}</main>
               </ErrorBoundary>
             </SidebarWrapper>

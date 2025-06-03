@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,13 @@ import { BackupStatus } from "@/components/backup-status"
 import { AIStatusIndicator } from "@/components/ai-status-indicator"
 import { WebBrowser } from "@/components/web-browser"
 import { TaskStatusIndicator } from "@/components/task-status-indicator"
+import { FileUploader } from "@/components/ui/file-uploader"
+import { FileDownloader } from "@/components/ui/file-downloader"
+
+type ChatMessage = {
+  sender: "user" | "ai";
+  text: string;
+};
 
 export default function Home() {
   const [trainingProgress, setTrainingProgress] = useState(0)
@@ -46,6 +53,9 @@ export default function Home() {
   const [showBrowser, setShowBrowser] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("dashboard")
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [inputMessage, setInputMessage] = useState("")
+  const chatEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     // Simulate automatic training start
@@ -198,6 +208,31 @@ export default function Home() {
     }, 300)
   }
 
+  const sendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
+    const newMessage: ChatMessage = { sender: "user", text: inputMessage };
+    setChatMessages((prev) => [...prev, newMessage]);
+    setInputMessage("");
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: inputMessage }),
+      });
+      const data = await response.json();
+
+      if (data.reply) {
+        setChatMessages((prev) => [...prev, { sender: "ai", text: data.reply }]);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <div className="container mx-auto py-8 px-4">
       <header className="flex justify-between items-center mb-8">
@@ -275,6 +310,35 @@ export default function Home() {
           </CardContent>
         </Card>
       )}
+
+      <div className="chat-container border rounded p-4 mb-6">
+        <div className="chat-messages overflow-y-auto h-64">
+          {chatMessages.map((msg, index) => (
+            <div
+              key={index}
+              className={`chat-message ${msg.sender === "ai" ? "text-blue-500" : "text-gray-700"}`}
+            >
+              <strong>{msg.sender === "ai" ? "AI" : "You"}:</strong> {msg.text}
+            </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+
+        <div className="chat-input mt-4 flex gap-2">
+          <Input
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            placeholder="Type your message..."
+            className="flex-1"
+          />
+          <Button onClick={sendMessage}>Send</Button>
+        </div>
+      </div>
+
+      <div className="file-management flex gap-4">
+        <FileUploader />
+        <FileDownloader />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid grid-cols-7 md:w-[1050px]">

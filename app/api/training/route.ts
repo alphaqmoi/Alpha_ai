@@ -45,6 +45,63 @@ const readStatusFile = () => {
   return null
 }
 
+// Declare the startTrainingSimulation function before it is used
+const startTrainingSimulation = () => {
+  if (isTraining) {
+    let currentPhaseIndex = 0;
+    const phases = [
+      "Training model",
+      "Testing the model",
+      "Fixing the model",
+      "Retesting the model",
+      "Getting model ready",
+      "Model is in use",
+    ];
+
+    const intervalId = setInterval(() => {
+      trainingProgress += Math.random() * 2;
+
+      if (trainingProgress >= (currentPhaseIndex + 1) * (100 / phases.length)) {
+        currentPhaseIndex = Math.min(currentPhaseIndex + 1, phases.length - 1);
+        trainingPhase = phases[currentPhaseIndex];
+        trainingStatus = `Processing ${trainingPhase}`;
+      }
+
+      updateStatusFile({
+        progress: trainingProgress,
+        status: trainingStatus,
+        phase: trainingPhase,
+      });
+
+      if (trainingProgress >= 100) {
+        trainingProgress = 100;
+        trainingStatus = "Training complete";
+        trainingPhase = "Model is in use";
+        isTraining = false;
+
+        updateStatusFile({
+          progress: trainingProgress,
+          status: trainingStatus,
+          phase: trainingPhase,
+        });
+
+        clearInterval(intervalId);
+
+        setTimeout(() => {
+          trainingPhase = "Continuous learning";
+          trainingStatus = "Learning from new data";
+
+          updateStatusFile({
+            progress: 100,
+            status: trainingStatus,
+            phase: trainingPhase,
+          });
+        }, 5000);
+      }
+    }, 1000);
+  }
+};
+
 // Initialize status from file if it exists
 const initializeFromFile = () => {
   const status = readStatusFile()
@@ -62,7 +119,7 @@ const initializeFromFile = () => {
   }
 }
 
-// Call initialization
+// Call initialization after declaring startTrainingSimulation
 initializeFromFile()
 
 // Function to check if training is needed
@@ -76,7 +133,6 @@ const checkTrainingNeeded = () => {
   // If training was completed recently (within 30 minutes), no
 }
 
-let startTrainingSimulation: any
 let the: any
 let Bitget: any
 let trading: any

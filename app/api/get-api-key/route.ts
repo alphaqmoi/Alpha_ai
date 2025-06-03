@@ -12,4 +12,6 @@ export async function GET() {
   });
 
   if (error) {
-    return NextResponse.json({ error: "Failed to save API key."
+    return NextResponse.json({ error: "Failed to save API key." }, { status: 500 });
+  }
+}

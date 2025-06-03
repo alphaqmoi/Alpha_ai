@@ -76,6 +76,14 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === "/q-workspace"} tooltip="Q Workshop">
+              <Link href="/q-workspace">
+                <Briefcase className="h-5 w-5" />
+                <span>Q Workshop</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-4">

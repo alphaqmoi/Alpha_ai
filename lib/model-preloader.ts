@@ -55,3 +55,35 @@ setInterval(() => {
     preloadModel().catch(console.error)
   }
 }, 60000) // Every minute
+
+export async function ensureConfidenceThresholdAndTrade() {
+  const confidenceThreshold = 0.7;
+
+  // Step 1: Train the model until confidence threshold is met
+  let confidence = 0;
+  while (confidence < confidenceThreshold) {
+    console.log("Training model to achieve confidence threshold...");
+    confidence = await trainModel(); // Simulated training function
+    console.log(`Current confidence: ${confidence}`);
+  }
+
+  console.log("Confidence threshold met. Proceeding to trade with real funds.");
+
+  // Step 2: Trade with real funds in Bitget account
+  try {
+    const tradeResult = await executeRealTrade(); // Simulated trading function
+    console.log("Trade executed successfully:", tradeResult);
+  } catch (error) {
+    console.error("Error executing trade:", error);
+  }
+}
+
+async function trainModel() {
+  // Simulate training process
+  return Math.random(); // Replace with actual training logic
+}
+
+async function executeRealTrade() {
+  // Simulate trading process
+  return { success: true, details: "Trade details here" }; // Replace with actual trading logic
+}

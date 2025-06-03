@@ -13,7 +13,6 @@ import { Brain, ChevronLeft, Save } from "lucide-react"
 import Link from "next/link"
 import { VoiceSelector } from "@/components/voice-selector"
 import { WebBrowser } from "@/components/web-browser"
-import { GitHubIntegration } from "@/components/github-integration"
 import { AppDownload } from "@/components/app-download"
 import ApiSetup from "@/components/api-setup";
 
@@ -140,12 +139,22 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="backup" className="space-y-4">
-          <GitHubIntegration
-            githubToken={githubToken}
-            setGithubToken={setGithubToken}
-            backupFrequency={backupFrequency}
-            setBackupFrequency={setBackupFrequency}
-          />
+          <div className="space-y-4">
+            <Label htmlFor="github-token">GitHub Token</Label>
+            <Input
+              id="github-token"
+              value={githubToken}
+              onChange={(e) => setGithubToken(e.target.value)}
+              placeholder="Enter your GitHub token"
+            />
+            <Label htmlFor="backup-frequency">Backup Frequency</Label>
+            <Input
+              id="backup-frequency"
+              value={backupFrequency}
+              onChange={(e) => setBackupFrequency(e.target.value)}
+              placeholder="Enter backup frequency"
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="voice" className="space-y-4">
