@@ -1,7 +1,7 @@
 // Bitget API credentials
-const BITGET_API_KEY = "bg_1d7ea7c56644fb5da18a400c92a425d7"
-const BITGET_SECRET_KEY = "e9121c2f6018c6844dd631a35583d4113fcfb1b2a8d3761c0ea430ea8fae7d13"
-const BITGET_PASSPHRASE = "Victor9798"
+const BITGET_API_KEY = process.env.BITGET_API_KEY
+const BITGET_SECRET_KEY = process.env.BITGET_SECRET_KEY
+const BITGET_PASSPHRASE = process.env.BITGET_PASSPHRASE
 
 // Trading state
 let isTrading = false
@@ -11,13 +11,21 @@ let totalAssetValue = 0
 const THRESHOLD_VALUE = 0.7
 
 // Store for transactions
-const transactions = []
+type Transaction = {
+  id: string;
+  symbol: string;
+  side: "buy" | "sell";
+  quantity: string;
+  timestamp: string;
+  status?: string;
+};
+const transactions: Transaction[] = []
 
 // Function to sign API requests
 function signRequest(timestamp: string, method: string, requestPath: string, body = "") {
   const crypto = require("crypto")
   const message = timestamp + method + requestPath + body
-  return crypto.createHmac("sha256", BITGET_SECRET_KEY).update(message).digest("base64")
+  return crypto.createHmac("sha256", BITGET_SECRET_KEY || "",).update(message).digest("base64")
 }
 
 // Function to make API requests to Bitget
@@ -25,30 +33,26 @@ async function bitgetRequest(method: string, endpoint: string, body: any = null)
   const timestamp = Date.now().toString()
   const requestPath = `/api/spot/v1${endpoint}`
   const bodyString = body ? JSON.stringify(body) : ""
-
   const signature = signRequest(timestamp, method, requestPath, bodyString)
-
   const headers = {
-    "ACCESS-KEY": BITGET_API_KEY,
+    "ACCESS-KEY": BITGET_API_KEY || "",
     "ACCESS-SIGN": signature,
     "ACCESS-TIMESTAMP": timestamp,
-    "ACCESS-PASSPHRASE": BITGET_PASSPHRASE,
+    "ACCESS-PASSPHRASE": BITGET_PASSPHRASE || "",
     "Content-Type": "application/json",
-  }
-
+  } as Record<string, string>;
   const url = `https://api.bitget.com${requestPath}`
-
   try {
     const response = await fetch(url, {
       method,
       headers,
       body: bodyString ? bodyString : undefined,
     })
-
     return await response.json()
   } catch (error) {
-    console.error("Bitget API request failed:", error)
-    return { error: "API request failed", details: error.message }
+    const errMsg = (error && typeof error === "object" && "message" in error) ? (error as any).message : String(error)
+    console.error("Bitget API request failed:", errMsg)
+    return { error: "API request failed", details: errMsg }
   }
 }
 
@@ -56,13 +60,11 @@ async function bitgetRequest(method: string, endpoint: string, body: any = null)
 export async function getAccountInfo() {
   try {
     const response = await bitgetRequest("GET", "/account/assets")
-
     if (response.code === "00000") {
       // Calculate total asset value
-      totalAssetValue = response.data.reduce((total, asset) => {
+      totalAssetValue = response.data.reduce((total: number, asset: any) => {
         return total + Number.parseFloat(asset.available) * Number.parseFloat(asset.usdPrice || "0")
       }, 0)
-
       return {
         success: true,
         totalAssetValue,
@@ -77,7 +79,8 @@ export async function getAccountInfo() {
       }
     }
   } catch (error) {
-    console.error("Error getting account info:", error)
+    const errMsg = (error && typeof error === "object" && "message" in error) ? (error as any).message : String(error)
+    console.error("Error getting account info:", errMsg)
     return {
       success: false,
       error: "Failed to get account information",
@@ -181,6 +184,43 @@ export function getTransactions() {
   return transactions
 }
 
+// Import Qmoi trade decision function
+import { getQmoiTradeRecommendation } from "./qmoi"
+
+// Placeholder for Qmoi model trade decision
+async function getQmoiTradeDecisionBitget(assetValue: number, openTrades: any[]): Promise<{symbol: string, side: "buy" | "sell", quantity: string}> {
+  try {
+    // Try to use the shared Qmoi HuggingFace integration
+    const recommendation = await getQmoiTradeRecommendation({
+      assetValue,
+      openTrades,
+      maxConcurrent: MAX_TRADES,
+    })
+    if (
+      recommendation &&
+      typeof recommendation.symbol === "string" &&
+      (recommendation.side === "buy" || recommendation.side === "sell") &&
+      typeof recommendation.amount === "number"
+    ) {
+      // Bitget expects quantity as a string
+      return {
+        symbol: recommendation.symbol.replace("/", ""),
+        side: recommendation.side,
+        quantity: recommendation.amount.toString(),
+      }
+    }
+    throw new Error("Qmoi model returned invalid recommendation")
+  } catch (error) {
+    console.warn("Qmoi/HuggingFace trade decision failed, falling back to random logic:", error)
+    // Fallback to random logic if Qmoi fails
+    const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)]
+    const side = Math.random() > 0.5 ? "buy" : "sell"
+    const quantity = "0.001"
+    return { symbol, side, quantity }
+  }
+}
+
 // Function to start background trading
 export async function startBackgroundTrading() {
   if (isTrading) return
@@ -199,20 +239,12 @@ export async function startBackgroundTrading() {
   }
 
   // Start background trading logic
-  // This would typically be implemented with a more sophisticated trading strategy
-  // For demonstration purposes, we'll just set up a simple interval
-
   setInterval(async () => {
     if (!isTrading || activeTrades >= MAX_TRADES) return
 
-    // Simple trading strategy (example only)
-    // In a real implementation, this would be much more sophisticated
-    const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
-    const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)]
-    const side = Math.random() > 0.5 ? "buy" : "sell"
-    const quantity = "0.001" // Small quantity for safety
-
-    await placeTrade(randomSymbol, side, quantity)
+    // Use Qmoi model for trade decision
+    const { symbol, side, quantity } = await getQmoiTradeDecisionBitget(totalAssetValue, transactions.filter(t => t.status !== "closed"))
+    await placeTrade(symbol, side, quantity)
   }, 60000) // Check every minute
 
   return {

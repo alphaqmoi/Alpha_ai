@@ -1,0 +1,13 @@
+[
+  {
+    "id": "1748993412893",
+    "pair": "BTC/USDT",
+    "type": "buy",
+    "amount": 0.01,
+    "price": 50661.24,
+    "timestamp": "2025-06-03T23:30:12.894Z",
+    "profit": 0,
+    "isProfit": true,
+    "status": "completed"
+  }
+]

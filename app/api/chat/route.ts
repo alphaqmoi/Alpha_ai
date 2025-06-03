@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { isModelLoaded, preloadModel } from "@/lib/model-preloader"
+import { getQmoiChatResponse } from "@/lib/qmoi"
 
 // Explicitly define the type for conversationHistory
 interface ConversationMessage {
@@ -33,18 +34,27 @@ export async function POST(req: Request) {
     // Add user message to history
     conversationHistory.push({ role: "user", content: message });
 
-    // Generate response using AI SDK
-    let text;
+    // Try Qmoi (HuggingFace) first, fallback to OpenAI
+    let text: string | undefined = undefined;
+    let errorMsg: string | undefined = undefined;
     try {
-      const result = await generateText({
-        model: openai("gpt-4o"),
-        prompt: message,
-        system: "You are a helpful assistant.",
-      });
-      text = result.text;
-    } catch (error) {
-      console.error("Error generating text:", error);
-      return NextResponse.json({ error: "Failed to generate response." }, { status: 500 });
+      text = await getQmoiChatResponse(message, conversationHistory.map(m => `${m.role}: ${m.content}`));
+    } catch (err) {
+      console.warn("Qmoi/HuggingFace chat failed, falling back to OpenAI:", err);
+      errorMsg = (err instanceof Error ? err.message : String(err));
+    }
+    if (!text) {
+      try {
+        const result = await generateText({
+          model: openai("gpt-4o"),
+          prompt: message,
+          system: "You are a helpful assistant.",
+        });
+        text = result.text;
+      } catch (error) {
+        console.error("Error generating text:", error);
+        return NextResponse.json({ error: "Failed to generate response." }, { status: 500 });
+      }
     }
 
     // Add assistant response to history
@@ -56,8 +66,10 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      reply: text, // Updated to match the Home page's expectations
+      reply: text,
       history: conversationHistory,
+      model: errorMsg ? "openai-fallback" : "qmoi-hf",
+      error: errorMsg,
     });
   } catch (error) {
     console.error("Error in chat API:", error)

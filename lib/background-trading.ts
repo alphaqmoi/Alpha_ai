@@ -3,10 +3,9 @@
 import { cookies } from "next/headers"
 
 // Constants for Bitget API
-const BITGET_API_KEY = process.env.BITGET_API_KEY || "bg_1d7ea7c56644fb5da18a400c92a425d7"
-const BITGET_SECRET_KEY =
-  process.env.BITGET_SECRET_KEY || "e9121c2f6018c6844dd631a35583d4113fcfb1b2a8d3761c0ea430ea8fae7d13"
-const BITGET_PASSPHRASE = process.env.BITGET_PASSPHRASE || "Victor9798"
+const BITGET_API_KEY = process.env.BITGET_API_KEY
+const BITGET_SECRET_KEY = process.env.BITGET_SECRET_KEY
+const BITGET_PASSPHRASE = process.env.BITGET_PASSPHRASE
 
 // Trading parameters
 const THRESHOLD_VALUE = 0.7
@@ -21,7 +20,7 @@ interface TradingData {
   trades: Trade[]
 }
 
-interface Trade {
+export type Trade = {
   id: string
   symbol: string
   side: "buy" | "sell"
@@ -31,15 +30,63 @@ interface Trade {
   status: "open" | "closed" | "canceled"
 }
 
+// --- Qmoi model integration ---
+// Import the Qmoi model (assume it's implemented in lib/qmoi.ts)
+import { getQmoiTradeRecommendation } from "@/lib/qmoi"
+
+// --- Notification system integration ---
+// Try to use a global event emitter if available, fallback to console
+import { EventEmitter } from "events"
+const globalEmitter = (global as any).alphaAiEmitter as EventEmitter | undefined
+function notifyUser(event: string, details: any) {
+  if (globalEmitter) {
+    globalEmitter.emit(event, details)
+  } else {
+    // Fallback to console
+    console.log(`[NOTIFY] ${event}:`, details)
+  }
+}
+
+// --- Qmoi model trade decision ---
+// Use the real Qmoi model for trade decision
+async function getQmoiTradeDecision(assetValue: number, openTrades: Trade[]): Promise<{symbol: string, side: "buy" | "sell", amount: number}> {
+  try {
+    // Call the Qmoi model for a trade recommendation
+    // The model should return { symbol, side, amount }
+    const recommendation = await getQmoiTradeRecommendation({
+      assetValue,
+      openTrades,
+      maxConcurrent: MAX_CONCURRENT_TRADES,
+    })
+    if (
+      recommendation &&
+      typeof recommendation.symbol === "string" &&
+      (recommendation.side === "buy" || recommendation.side === "sell") &&
+      typeof recommendation.amount === "number"
+    ) {
+      return recommendation
+    }
+    throw new Error("Qmoi model returned invalid recommendation")
+  } catch (error) {
+    notifyUser("qmoi_error", { error })
+    // Fallback to random logic if Qmoi fails
+    const symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT"]
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)]
+    const side = Math.random() > 0.5 ? "buy" : "sell"
+    const amount = 0.01 + Math.random() * 0.09
+    return { symbol, side, amount }
+  }
+}
+
 // Mock function to get account balance from Bitget
 async function getBitgetAccountBalance(): Promise<number> {
   try {
     // In a real implementation, this would make an API call to Bitget
     // For now, we'll simulate a successful API call
     console.log("Fetching Bitget account balance with credentials:", {
-      apiKey: BITGET_API_KEY.substring(0, 5) + "...",
-      secretKey: BITGET_SECRET_KEY.substring(0, 5) + "...",
-      passphrase: BITGET_PASSPHRASE.substring(0, 3) + "...",
+      apiKey: BITGET_API_KEY ? BITGET_API_KEY.substring(0, 5) + "..." : "undefined",
+      secretKey: BITGET_SECRET_KEY ? BITGET_SECRET_KEY.substring(0, 5) + "..." : "undefined",
+      passphrase: BITGET_PASSPHRASE ? BITGET_PASSPHRASE.substring(0, 3) + "..." : "undefined",
     })
 
     // Simulate API call delay
@@ -83,7 +130,7 @@ async function placeBitgetTrade(symbol: string, side: "buy" | "sell", amount: nu
 
 // Function to get current trading data
 export async function getTradingData(): Promise<TradingData> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const tradingDataCookie = cookieStore.get("trading-data")
 
   if (tradingDataCookie) {
@@ -106,7 +153,8 @@ export async function getTradingData(): Promise<TradingData> {
 
 // Function to save trading data
 export async function saveTradingData(data: TradingData): Promise<void> {
-  cookies().set("trading-data", JSON.stringify(data), {
+  const cookieStore = await cookies()
+  cookieStore.set("trading-data", JSON.stringify(data), {
     maxAge: 60 * 60 * 24 * 30, // 30 days
     path: "/",
   })
@@ -121,47 +169,58 @@ export async function updateTradingStatus(): Promise<TradingData> {
   tradingData.lastChecked = new Date().toISOString()
 
   // Get account balance from Bitget
-  const assetValue = await getBitgetAccountBalance()
-  tradingData.assetValue = assetValue
+  let assetValue = 0
+  try {
+    assetValue = await getBitgetAccountBalance()
+    tradingData.assetValue = assetValue
+  } catch (error) {
+    console.error("Error getting Bitget account balance:", error)
+    notifyUser("error", { type: "balance", error })
+    tradingData.assetValue = 0
+  }
 
   // Check if we should be trading
   if (assetValue >= THRESHOLD_VALUE) {
     tradingData.isTrading = true
-
     // Count active trades
     const activeTrades = tradingData.trades.filter((trade) => trade.status === "open").length
     tradingData.activeTrades = activeTrades
-
     // Place new trades if we have capacity
     if (activeTrades < MAX_CONCURRENT_TRADES) {
       const tradesToPlace = MAX_CONCURRENT_TRADES - activeTrades
-
       for (let i = 0; i < tradesToPlace; i++) {
-        // Randomly choose a trading pair
-        const symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT"]
-        const symbol = symbols[Math.floor(Math.random() * symbols.length)]
-
-        // Randomly choose buy or sell
-        const side = Math.random() > 0.5 ? "buy" : "sell"
-
-        // Random amount between 0.01 and 0.1
-        const amount = 0.01 + Math.random() * 0.09
-
-        // Place the trade
-        const trade = await placeBitgetTrade(symbol, side, amount)
-
-        if (trade) {
-          tradingData.trades.push(trade)
-          tradingData.activeTrades++
+        try {
+          // Use Qmoi model for trade decision
+          const { symbol, side, amount } = await getQmoiTradeDecision(assetValue, tradingData.trades.filter(t => t.status === "open"))
+          const trade = await placeBitgetTrade(symbol, side, amount)
+          if (trade) {
+            tradingData.trades.push(trade)
+            tradingData.activeTrades++
+            notifyUser("trade_placed", { symbol, side, amount, trade })
+          } else {
+            notifyUser("trade_failed", { symbol, side, amount })
+          }
+        } catch (tradeError) {
+          console.error("Error placing trade:", tradeError)
+          notifyUser("trade_error", { error: tradeError })
         }
       }
     }
   } else {
     tradingData.isTrading = false
+    notifyUser("trading_paused", { reason: "Below threshold value", assetValue })
   }
 
   // Save updated trading data
-  await saveTradingData(tradingData)
+  try {
+    await saveTradingData(tradingData)
+  } catch (saveError) {
+    console.error("Error saving trading data:", saveError)
+    notifyUser("error", { type: "save", error: saveError })
+  }
+
+  // Emit/Log for monitoring
+  notifyUser("trading_status", tradingData)
 
   return tradingData
 }
